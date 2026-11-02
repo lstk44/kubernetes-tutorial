@@ -1,0 +1,133 @@
+# =====================================================================
+# CONFIGMAP (Configuration Data)
+# =====================================================================
+# A ConfigMap allows you to store non-sensitive configuration settings, 
+# key-value pairs, or environment variables outside of your container image.
+apiVersion: v1
+
+# Defines the type of Kubernetes object being created. 
+# A 'ConfigMap' holds configuration data as key-value pairs that can be 
+# consumed by pods or other components in the cluster.
+kind: ConfigMap
+
+# Metadata provides unique identification data for the ConfigMap object.
+metadata:
+  # The unique name of this ConfigMap resource within your Kubernetes namespace.
+  name: app-config
+
+  # Key-value pairs used to organize, group, or select this ConfigMap object.
+  labels:
+    app: sample-app
+
+# The data section contains the actual configuration key-value pairs.
+data:
+  LOG_LEVEL: "info"
+  APP_MODE: "development"
+  MAX_RETRIES: "3"
+
+---
+
+# =====================================================================
+# API VERSION & KIND
+# =====================================================================
+# Specifies the API group and version for this resource. 
+# 'apps/v1' is the stable API group used for managing stateless workloads.
+apiVersion: apps/v1
+
+# Defines the type of Kubernetes object being created. 
+# A 'Deployment' ensures that a specified number of Pods are running. 
+# NOTE: If your containerized application script finishes execution and exits 
+# (like a batch script), a Deployment will automatically restart it by default!
+kind: Deployment
+
+# =====================================================================
+# METADATA (The Identification Tag)
+# =====================================================================
+metadata:
+  # The unique name of this deployment resource within your Kubernetes cluster.
+  name: app-deployment
+
+  # Key-value pairs (labels) used to organize and tag this resource.
+  labels:
+    app: sample-app
+
+# =====================================================================
+# SPECIFICATION (The Desired State)
+# =====================================================================
+spec:
+  # The number of identical pod instances that should run concurrently.
+  # Set to '1' here because this is a standalone container execution. 
+  # If you set this to 3, Kubernetes would spin up 3 separate containers 
+  # running your application at the exact same time!
+  replicas: 1
+
+  # Defines how the deployment tracks which pods belong to it.
+  selector:
+    matchLabels:
+      # This acts as a tracking label. It MUST match the labels defined 
+      # in the pod template below so the deployment knows who it is managing.
+      app: sample-app
+
+  # ===================================================================
+  # POD TEMPLATE (The Blueprint for your Containers)
+  # ===================================================================
+  # Every time Kubernetes builds a pod, it uses this blueprint template.
+  template:
+    metadata:
+      # Labels applied to every individual pod created by this template.
+      labels:
+        app: sample-app
+
+    # The core runtime specification for the pod environment.
+    spec:
+      containers:
+      # Since a pod can technically hold multiple containers (sidecars), 
+      # we define and name our primary application container here.
+      - name: app-container
+
+        # The name and tag of the Docker image to execute. 
+        # This references your local image loaded into the Kind cluster.
+        image: kubernetes-tutorial:latest
+
+        # Controls when the cluster attempts to download (pull) the container image.
+        # 'IfNotPresent' tells Kubernetes: "Look inside the local node's cache first. 
+        # Do not try to download it from an external registry like Docker Hub."
+        imagePullPolicy: IfNotPresent
+
+        # ===============================================================
+        # INJECTING CONFIGMAP VALUES AS ENVIRONMENT VARIABLES
+        # ===============================================================
+        # This section pulls keys from the ConfigMap defined above and injects 
+        # them directly into the container as standard environment variables.
+        env:
+          - name: LOG_LEVEL              # Name of the environment variable inside the container
+            valueFrom:
+              configMapKeyRef:
+                name: app-config         # Matches the 'name' of the ConfigMap metadata above
+                key: LOG_LEVEL           # Matches the specific key inside the ConfigMap data
+
+          - name: APP_MODE
+            valueFrom:
+              configMapKeyRef:
+                name: app-config
+                key: APP_MODE
+
+          - name: MAX_RETRIES
+            valueFrom:
+              configMapKeyRef:
+                name: app-config
+                key: MAX_RETRIES
+
+        # ===============================================================
+        # RESOURCE REQUESTS & LIMITS
+        # ===============================================================
+        # In production workloads, you can define resource bounds right 
+        # here under the container spec to ensure stable execution:
+        #
+        # resources:
+        #   requests:
+        #     memory: "512Mi"   # Minimum RAM guaranteed for your container
+        #     cpu: "500m"       # Half of a CPU core
+        #   limits:
+        #     memory: "2Gi"     # Maximum RAM limit (prevents out-of-memory crashes)
+        #     cpu: "2"          # Maximum CPU cores your container can utilize
